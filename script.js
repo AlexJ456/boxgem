@@ -24,22 +24,23 @@ if ('serviceWorker' in navigator) {
 
 // --- Main App Initialization --- (Handles view and getting URL params)
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM Content Loaded. URL:", window.location.href); // DEBUG LOG
     const urlParams = new URLSearchParams(window.location.search);
     const viewParam = urlParams.get('view');
     const limitParam = urlParams.get('limit');
-    const phaseParam = urlParams.get('phase'); // Get phase duration from URL
+    const phaseParam = urlParams.get('phase');
+    console.log("URL Params:", { viewParam, limitParam, phaseParam }); // DEBUG LOG
 
-    // Decide which view to show
-    if (viewParam === 'exercise' || limitParam !== null || phaseParam !== null) { // Show exercise if any exercise params exist
+    // Decide which view to show based on URL parameters
+    if (viewParam === 'exercise' || limitParam !== null || phaseParam !== null) {
+        console.log("Switching to Exercise View"); // DEBUG LOG
         document.body.classList.remove('view-home');
         document.body.classList.add('view-exercise');
-        console.log("Setting up exercise view.");
-        // Pass limit AND phase duration
         setupExercisePage(limitParam, phaseParam);
     } else {
+        console.log("Switching to Home View"); // DEBUG LOG
         document.body.classList.remove('view-exercise');
         document.body.classList.add('view-home');
-        console.log("Setting up homepage view.");
         setupHomepage();
     }
 });
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Homepage Logic --- (Handles slider input and navigation)
 function setupHomepage() {
+    console.log("Running setupHomepage"); // DEBUG LOG
     // Get elements needed for homepage
     const timeButtons = document.querySelectorAll('#homepage-content .time-button');
     const startCustomButton = document.getElementById('start-custom');
@@ -57,68 +59,74 @@ function setupHomepage() {
 
     // --- Slider Setup ---
     if (phaseSlider && phaseValueDisplay) {
-        // Function to update display text
         const updateSliderDisplay = () => {
             phaseValueDisplay.textContent = `${phaseSlider.value} second${phaseSlider.value > 1 ? 's' : ''}`;
         };
-
-        // Listener for slider changes
         phaseSlider.addEventListener('input', updateSliderDisplay);
-
-        // Restore slider position from previous visit? (Optional - use localStorage)
-        // const savedPhase = localStorage.getItem('boxBreathPhaseDuration');
-        // if (savedPhase) {
-        //     phaseSlider.value = savedPhase;
-        // }
-
-        // Initial display update on load
-        updateSliderDisplay();
+        updateSliderDisplay(); // Initial display
     } else {
          console.error("Phase duration slider elements not found!");
     }
 
+    // --- Button Listeners (Simplified - No cloneNode) ---
+    // Generic function to handle button clicks and navigation
+    const handleStartClick = (durationGetter, isInfinite = false) => {
+        console.log("handleStartClick called"); // DEBUG LOG
+        const duration = isInfinite ? null : durationGetter();
+        const phaseDuration = phaseSlider ? parseInt(phaseSlider.value, 10) : DEFAULT_PHASE_DURATION;
+        console.log("Attempting to navigate with:", { duration, phaseDuration }); // DEBUG LOG
 
-    // --- Button Listeners (with cloning to prevent duplicates) ---
-     const setupButtonListener = (button, durationGetter, isInfinite = false) => {
-         if (!button) return;
-         // Clone node to remove previous listeners added in case setupHomepage runs again without full reload
-         const clonedButton = button.cloneNode(true);
-         button.parentNode.replaceChild(clonedButton, button);
+        if (duration !== undefined) { // Allow null (infinite), but block if getter failed
+            navigateToExercise(duration, phaseDuration);
+        } else {
+             console.warn("Duration getter failed, not navigating."); // DEBUG LOG
+        }
+    };
 
-         clonedButton.addEventListener('click', () => {
-             const duration = isInfinite ? null : durationGetter();
-             const phaseDuration = phaseSlider ? parseInt(phaseSlider.value, 10) : DEFAULT_PHASE_DURATION; // Get slider value OR default
-
-             // Optional: Save selected phase duration for next visit
-             // localStorage.setItem('boxBreathPhaseDuration', phaseDuration);
-
-             if (duration !== undefined) { // Allow null for infinite, but block if custom getter failed
-                navigateToExercise(duration, phaseDuration);
-             }
-         });
-     };
-
+    // Attach listeners
     if (timeButtons.length > 0) {
         timeButtons.forEach(button => {
-            setupButtonListener(button, () => parseInt(button.dataset.duration, 10));
+            // Check if listener already exists (simple check, might not be robust for all cases but helps)
+            if (!button.hasAttribute('data-listener-attached')) {
+                button.addEventListener('click', () => {
+                    console.log("Time button clicked:", button.dataset.duration); // DEBUG LOG
+                    handleStartClick(() => parseInt(button.dataset.duration, 10));
+                });
+                 button.setAttribute('data-listener-attached', 'true');
+            }
         });
+    } else {
+         console.warn("No time buttons found");
     }
 
-     setupButtonListener(startCustomButton, () => {
-        const minutes = parseInt(customTimeInput.value, 10);
-        if (minutes && minutes > 0) {
-             return minutes * 60;
-         } else {
-             console.warn("Invalid custom time");
-             customTimeInput.value = '';
-             return undefined; // Indicate failure
-         }
-     });
+     if (startCustomButton && !startCustomButton.hasAttribute('data-listener-attached')) {
+        startCustomButton.addEventListener('click', () => {
+             console.log("Start custom clicked"); // DEBUG LOG
+             handleStartClick(() => {
+                 const minutes = parseInt(customTimeInput.value, 10);
+                 if (minutes && minutes > 0) {
+                     return minutes * 60;
+                 } else {
+                     console.warn("Invalid custom time");
+                     customTimeInput.value = '';
+                     return undefined; // Indicate failure
+                 }
+             });
+         });
+          startCustomButton.setAttribute('data-listener-attached', 'true');
+     }
 
-     setupButtonListener(startInfiniteButton, () => null, true); // Pass getter returning null, isInfinite = true
+     if (startInfiniteButton && !startInfiniteButton.hasAttribute('data-listener-attached')) {
+        startInfiniteButton.addEventListener('click', () => {
+             console.log("Start infinite clicked"); // DEBUG LOG
+             handleStartClick(() => null, true); // Getter returns null, isInfinite = true
+         });
+          startInfiniteButton.setAttribute('data-listener-attached', 'true');
+     }
 
      // Clear any lingering exercise state if navigating back to home
      resetExerciseState();
+     console.log("setupHomepage finished"); // DEBUG LOG
 }
 
 // Updated Navigation function (takes phase duration)
@@ -127,6 +135,7 @@ function navigateToExercise(durationSeconds, phaseDuration) {
     if (durationSeconds !== null) {
         url += `&limit=${durationSeconds}`; // Add limit if specified
     }
+    console.log("Navigating to URL:", url); // DEBUG LOG
     window.location.href = url;
 }
 
@@ -134,50 +143,55 @@ function navigateToExercise(durationSeconds, phaseDuration) {
 // --- Exercise Page Logic ---
 // Modified to accept limit and phase parameters
 function setupExercisePage(limitParam, phaseParam) {
+     console.log("Running setupExercisePage with:", { limitParam, phaseParam }); // DEBUG LOG
     const totalTimerEl = document.getElementById('total-timer');
     const phaseNameEl = document.getElementById('phase-name');
     const phaseTimerEl = document.getElementById('phase-timer');
     const breathingDotEl = document.getElementById('breathing-dot');
     const backButton = document.querySelector('#exercise-content .back-button');
 
+    // **Crucial Check**: Ensure elements are found
     if (!totalTimerEl || !phaseNameEl || !phaseTimerEl || !breathingDotEl || !backButton) {
-        console.error("Required exercise elements not found!");
-        window.location.href = '/'; // Redirect home
-        return;
+        console.error("Required exercise elements not found in setupExercisePage!");
+        // Optional: Show an error to the user on the page itself
+        document.body.innerHTML = '<div style="color: red; padding: 20px;">Error: Could not load exercise elements. Please try going back home.</div>';
+        return; // Stop execution if elements are missing
     }
+     console.log("Exercise page elements found."); // DEBUG LOG
 
-    // Set Active Phase Duration based on URL parameter or default
+    // Set Active Phase Duration
     activePhaseDuration = phaseParam ? parseInt(phaseParam, 10) : DEFAULT_PHASE_DURATION;
-    // Ensure phase duration is within valid range (3-6 seconds)
-    activePhaseDuration = Math.max(3, Math.min(6, activePhaseDuration));
-    console.log(`Using phase duration: ${activePhaseDuration}s`);
+    activePhaseDuration = Math.max(3, Math.min(6, activePhaseDuration)); // Clamp value
+    console.log(`Active phase duration: ${activePhaseDuration}s`);
 
     // Set Time Limit
     timeLimit = limitParam ? parseInt(limitParam, 10) : null;
-    console.log(`Starting exercise. Time limit: ${timeLimit === null ? 'Infinite' : timeLimit + 's'}`);
+    console.log(`Time limit: ${timeLimit === null ? 'Infinite' : timeLimit + 's'}`);
 
-    // Set Animation Duration based on active phase duration
-    if(breathingDotEl) {
-        breathingDotEl.style.transitionDuration = `${activePhaseDuration}s`;
-        console.log(`Set animation duration to: ${breathingDotEl.style.transitionDuration}`);
-    }
+    // Set Animation Duration
+    breathingDotEl.style.transitionDuration = `${activePhaseDuration}s`;
+    console.log(`Set animation duration to: ${breathingDotEl.style.transitionDuration}`);
 
-    // Ensure the back button goes to the home view
-    backButton.href = '/';
+    backButton.href = '/'; // Ensure back button links correctly
 
-    resetExerciseState(); // Ensure clean start
+    resetExerciseState(); // Ensure clean state *before* setting initial display
 
-    // Update initial display AFTER reset and setting activePhaseDuration
-    if(phaseNameEl) phaseNameEl.textContent = "Get Ready...";
-    if(phaseTimerEl) phaseTimerEl.textContent = activePhaseDuration; // Use the active duration
+    // Update initial display values
+    phaseNameEl.textContent = "Get Ready...";
+    phaseTimerEl.textContent = activePhaseDuration;
+     console.log("Initial display set."); // DEBUG LOG
 
     // Short delay before starting the actual cycle
+     console.log("Setting timeout to start breathing cycle..."); // DEBUG LOG
     setTimeout(() => {
+         console.log("Timeout finished, calling startBreathingCycle."); // DEBUG LOG
         startBreathingCycle();
-    }, 1500);
+    }, 1500); // 1.5 second delay
+     console.log("setupExercisePage finished."); // DEBUG LOG
 }
 
-
+// --- startBreathingCycle, updatePhase, updateDisplay, stopBreathingCycle, resetExerciseState ---
+// --- (Keep these functions exactly the same as the previous 'final' version) ---
 function startBreathingCycle() {
     const phaseNameEl = document.getElementById('phase-name');
     const breathingDotEl = document.getElementById('breathing-dot');
@@ -187,19 +201,23 @@ function startBreathingCycle() {
         return;
      }
 
-    console.log("Starting cycle");
+    console.log("Starting breathing cycle interval"); // DEBUG LOG
     currentPhaseIndex = 0;
-    // Use activePhaseDuration for timing calculations
-    phaseTimeRemaining = activePhaseDuration;
+    phaseTimeRemaining = activePhaseDuration; // Use correct duration
     isEndingSequence = false;
     totalTimeElapsed = 0;
 
-    updatePhase();
+    updatePhase(); // Initial visual setup
 
     let lastTickTime = Date.now();
 
     intervalId = setInterval(() => {
-        if (!document.getElementById('phase-name')) { stopBreathingCycle(); return; } // Check element still exists
+        // Add check for elements existence within interval as well
+        if (!document.getElementById('phase-name') || !document.getElementById('phase-timer')) {
+             console.warn("Elements missing inside interval, stopping.");
+            stopBreathingCycle();
+            return;
+        }
 
         const now = Date.now();
         const delta = (now - lastTickTime) / 1000;
@@ -210,7 +228,6 @@ function startBreathingCycle() {
 
         // Handle Time Limit Reached
         if (timeLimit !== null && totalTimeElapsed >= timeLimit && !isEndingSequence) {
-             // If limit reached during wait OR exactly at the end of exhale, stop
              if ((PHASES[currentPhaseIndex] === 'exhale' && phaseTimeRemaining <= 0) || PHASES[currentPhaseIndex] === 'wait') {
                  console.log("Limit reached end of exhale/wait. Stopping.");
                  stopBreathingCycle();
@@ -223,7 +240,6 @@ function startBreathingCycle() {
 
         // Phase transition
         if (phaseTimeRemaining <= 0) {
-            // If in ending sequence and just finished exhale/wait, stop
             if (isEndingSequence && (PHASES[currentPhaseIndex] === 'exhale' || PHASES[currentPhaseIndex] === 'wait')) {
                 console.log(`Ending sequence complete after ${PHASES[currentPhaseIndex]}. Stopping.`);
                 stopBreathingCycle();
@@ -231,105 +247,86 @@ function startBreathingCycle() {
             }
 
             currentPhaseIndex = (currentPhaseIndex + 1) % PHASES.length;
-            // Reset using activePhaseDuration, add overshoot time
-            phaseTimeRemaining = activePhaseDuration + phaseTimeRemaining;
-            if (intervalId) { // Check if stopBreathingCycle was called just above
+            phaseTimeRemaining = activePhaseDuration + phaseTimeRemaining; // Add overshoot
+            if (intervalId) {
+                // console.log("Transitioning phase"); // DEBUG LOG - Can be noisy
                 updatePhase();
             }
         }
 
-        if (intervalId) { // Check again before updating display
+        if (intervalId) {
            updateDisplay();
         }
-    }, 100); // Update interval (10 times per second)
+    }, 100);
 }
-
 
 function updatePhase() {
     const phaseNameEl = document.getElementById('phase-name');
     const breathingDotEl = document.getElementById('breathing-dot');
-    if (!phaseNameEl || !breathingDotEl) { return; } // Check if elements exist
+    if (!phaseNameEl || !breathingDotEl) { return; }
 
     const currentPhase = PHASES[currentPhaseIndex];
     phaseNameEl.textContent = currentPhase;
 
     breathingDotEl.classList.remove(...PHASES);
-    void breathingDotEl.offsetWidth; // Force reflow for transition restart
+    void breathingDotEl.offsetWidth;
     breathingDotEl.classList.add(currentPhase);
+    // console.log("Phase class added:", currentPhase); // DEBUG LOG - Can be noisy
 }
-
 
 function updateDisplay() {
     const totalTimerEl = document.getElementById('total-timer');
     const phaseTimerEl = document.getElementById('phase-timer');
-    // Ensure we are in exercise view and elements exist
-    if (!document.body.classList.contains('view-exercise') || !totalTimerEl || !phaseTimerEl) {
-        return;
-    }
+    if (!document.body.classList.contains('view-exercise') || !totalTimerEl || !phaseTimerEl) { return; }
 
-    // Total time formatting
     const totalSeconds = Math.floor(totalTimeElapsed);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     totalTimerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-    // Display phase countdown (using ceiling)
     const phaseSecondsToShow = Math.max(0, Math.ceil(phaseTimeRemaining));
     phaseTimerEl.textContent = phaseSecondsToShow;
 }
 
-
 function stopBreathingCycle() {
     if (intervalId) {
-        console.log("Stopping cycle.");
+        console.log("Stopping cycle interval."); // DEBUG LOG
         clearInterval(intervalId);
-        intervalId = null; // Clear interval ID immediately
+        intervalId = null;
 
-        // Update display only if still in exercise view and elements exist
         const phaseNameEl = document.getElementById('phase-name');
         const phaseTimerEl = document.getElementById('phase-timer');
         if(document.body.classList.contains('view-exercise')) {
            if (phaseNameEl) phaseNameEl.textContent = "Finished";
-           if (phaseTimerEl) phaseTimerEl.textContent = ""; // Clear phase timer
+           if (phaseTimerEl) phaseTimerEl.textContent = "";
         }
     }
 }
 
 function resetExerciseState() {
-     if (intervalId) { // Clear any existing interval first
+     if (intervalId) {
          clearInterval(intervalId);
          intervalId = null;
      }
-     // Reset state variables
      currentPhaseIndex = 0;
-     // Use the current activePhaseDuration for resetting timer
-     phaseTimeRemaining = activePhaseDuration;
+     phaseTimeRemaining = activePhaseDuration; // Reset with active duration
      totalTimeElapsed = 0;
      isEndingSequence = false;
 
-     // Reset relevant DOM elements if they exist
+     // Reset visuals (make sure elements exist if called from homepage setup)
      const phaseNameEl = document.getElementById('phase-name');
      const phaseTimerEl = document.getElementById('phase-timer');
      const totalTimerEl = document.getElementById('total-timer');
      const breathingDotEl = document.getElementById('breathing-dot');
 
-     if (phaseNameEl) phaseNameEl.textContent = ""; // Clear texts initially
+     if (phaseNameEl) phaseNameEl.textContent = "";
      if (phaseTimerEl) phaseTimerEl.textContent = "";
      if (totalTimerEl) totalTimerEl.textContent = "00:00";
-     if (breathingDotEl) {
-        breathingDotEl.classList.remove(...PHASES); // Remove phase classes
-        // Explicitly reset transform might not be necessary if CSS default is sufficient
-        // breathingDotEl.style.transform = 'translate(0, 0)';
-     }
+     if (breathingDotEl) { breathingDotEl.classList.remove(...PHASES); }
 
-     console.log("Exercise state reset");
+     console.log("Exercise state reset complete."); // DEBUG LOG
  }
 
-// Event listeners for cleanup when navigating away or closing
-window.addEventListener('pagehide', () => { // Often more reliable on mobile
-    stopBreathingCycle();
-});
-
-window.addEventListener('beforeunload', () => { // Fallback
-     stopBreathingCycle();
-});
+// Event listeners for cleanup
+window.addEventListener('pagehide', stopBreathingCycle);
+window.addEventListener('beforeunload', stopBreathingCycle);
