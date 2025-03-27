@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000"/>
+    <title>Breathe</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Breathe">
+
+    <style>
+        /* --- CSS rules embedded here --- */
+
+        /* Hide content by default */
+        #homepage-content,
+        #exercise-content {
+            display: none;
+            height: 100%;
+            width: 100%;
+        }
+        body.view-home #homepage-content,
+        body.view-exercise #exercise-content {
+            display: block;
+        }
+
+        /* General Reset and Base */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%; width: 100%; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000000; color: #FFF8E1;
+            -webkit-text-size-adjust: none; touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+
+        .container {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; height: 100%; padding: 20px; text-align: center;
+        }
+
+        /* --- Homepage Styles --- */
+        body.view-home #homepage-content h1 {
+            color: #FFA500; margin-bottom: 15px; font-size: 2.5em;
+        }
+        body.view-home #homepage-content p {
+            margin-bottom: 20px; /* Reduced margin */
+            color: #FFD700; font-size: 1.1em; max-width: 80%;
+        }
+        .button-group { margin-bottom: 20px; /* Reduced margin */ }
+        .time-button, #start-custom, #start-infinite {
+            background-color: #FF8C00; color: #000000; border: none;
+            padding: 15px 25px; margin: 5px; border-radius: 25px;
+            font-size: 1.1em; font-weight: bold; cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            min-width: 100px;
+        }
+        .time-button:hover, #start-custom:hover, #start-infinite:hover { background-color: #FFA500; }
+        .time-button:active, #start-custom:active, #start-infinite:active { transform: scale(0.95); }
+
+        /* Styles for Phase Duration Slider Section */
+        .phase-duration-group {
+            margin-bottom: 20px; /* Reduced margin */
+            padding: 15px;
+            border: 1px dashed #FF8C00; /* Dashed border */
+            border-radius: 15px;
+            display: inline-block; /* Shrink wrap content */
+            max-width: 90%;
+        }
+        .phase-duration-group label {
+            display: block; /* Label on its own line */
+            margin-bottom: 10px;
+            font-size: 1em;
+            color: #FFD700;
+        }
+        #phase-duration-slider {
+            width: 200px; /* Or adjust as needed */
+            max-width: 100%;
+            cursor: pointer;
+             /* Basic appearance reset */
+            appearance: none;
+            -webkit-appearance: none;
+            height: 8px; /* Slider track height */
+            background: #555; /* Dark track background */
+            border-radius: 5px;
+            outline: none;
+        }
+        /* Style the thumb (handle) */
+        #phase-duration-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #FFA500; /* Warm orange thumb */
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #phase-duration-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #FFA500;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none; /* Remove default border in Firefox */
+        }
+         #phase-duration-value {
+             display: inline-block; /* Keep it next to the slider */
+             min-width: 70px; /* Space for "x seconds" */
+             margin-left: 15px;
+             font-weight: bold;
+             color: #FFF8E1;
+             vertical-align: middle; /* Align with slider */
+        }
+
+
+        .start-group {
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; /* Reduced margin */
+             flex-wrap: wrap;
+        }
+        .start-group label { margin-right: 10px; font-size: 1em; white-space: nowrap; }
+        #custom-time {
+            padding: 10px; margin-right: 10px; border-radius: 15px;
+            border: 1px solid #FFA500; background-color: #333; color: #FFF8E1;
+            width: 80px; font-size: 1em; text-align: center;
+            appearance: textfield; -moz-appearance: textfield;
+        }
+        #custom-time::-webkit-outer-spin-button, #custom-time::-webkit-inner-spin-button {
+          -webkit-appearance: none; margin: 0;
+        }
+        #start-infinite {
+            background-color: transparent; color: #FF8C00; border: 2px solid #FF8C00;
+             margin-top: 10px; /* Add space */
+        }
+        #start-infinite:hover { background-color: rgba(255, 140, 0, 0.1); }
+
+
+        /* --- Exercise Page Styles --- */
+        body.view-exercise #exercise-content .container { justify-content: center; }
+        .total-timer {
+            position: absolute;
+            top: max(20px, env(safe-area-inset-top, 20px));
+            right: max(20px, env(safe-area-inset-right, 20px));
+            font-size: 0.9em; color: #FFD700; opacity: 0.7;
+        }
+        .back-button {
+            position: absolute;
+            top: max(20px, env(safe-area-inset-top, 20px));
+            left: max(20px, env(safe-area-inset-left, 20px));
+            font-size: 1em; color: #FFA500; text-decoration: none;
+            padding: 5px 10px; opacity: 0.8; transition: opacity 0.2s;
+        }
+        .back-button:hover { opacity: 1.0; }
+        .breathing-box-container {
+            width: 70vmin; max-width: 300px; height: 70vmin; max-height: 300px;
+            display: flex; justify-content: center; align-items: center; margin-bottom: 30px;
+        }
+        .breathing-box {
+            width: 100%; height: 100%; border: 2px solid #FF8C00;
+            position: relative; border-radius: 10px;
+        }
+        .breathing-dot {
+            width: 20px; height: 20px; background-color: #FFA500;
+            border-radius: 50%; position: absolute;
+            bottom: -10px; left: -10px;
+            /* DURATION SET BY JS VIA style.transitionDuration */
+            transition-property: transform;
+            transition-timing-function: linear;
+            transform: translate(0, 0);
+        }
+        .breathing-dot.inhale { transform: translate(0, calc(-100% + 0px)); }
+        .breathing-dot.hold { transform: translate(calc(100% + 0px), calc(-100% + 0px)); }
+        .breathing-dot.exhale { transform: translate(calc(100% + 0px), 0); }
+        .breathing-dot.wait { transform: translate(0, 0); }
+        .phase-info { margin-top: 20px; min-height: 80px; }
+        .phase-name {
+            font-size: 1.8em; color: #FFA500; margin-bottom: 10px;
+            font-weight: bold; text-transform: capitalize;
+            height: 1.2em; line-height: 1.2em;
+        }
+        .phase-timer { font-size: 3em; color: #FFF8E1; font-weight: lighter; }
+
+    </style>
+</head>
+<body> <!-- Class added by JS: 'view-home' or 'view-exercise' -->
+
+    <!-- ===== HOMEPAGE CONTENT ===== -->
+    <div id="homepage-content">
+        <div class="container">
+            <h1>Box Breathing</h1>
+            <p>Select a duration or start without a time limit.</p>
+
+            <!-- PHASE DURATION SLIDER SECTION -->
+            <div class="phase-duration-group">
+                <label for="phase-duration-slider">Phase Duration:</label>
+                <div>
+                    <input type="range" id="phase-duration-slider" name="phase-duration" min="3" max="6" value="4" step="1">
+                    <span id="phase-duration-value">4 seconds</span>
+                </div>
+            </div>
+            <!-- END PHASE DURATION SECTION -->
+
+            <div class="button-group">
+                <button class="time-button" data-duration="120">2 Min</button>
+                <button class="time-button" data-duration="300">5 Min</button>
+                <button class="time-button" data-duration="600">10 Min</button>
+            </div>
+            <div class="start-group">
+                 <label for="custom-time">Custom (mins):</label>
+                 <input type="number" id="custom-time" min="1" placeholder="e.g., 3">
+                 <button id="start-custom">Start Custom</button>
+            </div>
+            <button id="start-infinite">Start without Limit</button>
+        </div>
+    </div>
+
+    <!-- ===== EXERCISE PAGE CONTENT ===== -->
+    <div id="exercise-content">
+        <div class="total-timer" id="total-timer">00:00</div>
+        <!-- Link back to the root -->
+        <a href="/" class="back-button">End</a>
+
+        <div class="container">
+            <div class="breathing-box-container">
+                <div class="breathing-box">
+                    <div class="breathing-dot" id="breathing-dot"></div>
+                </div>
+            </div>
+            <div class="phase-info">
+                <div class="phase-name" id="phase-name">Get Ready...</div>
+                <div class="phase-timer" id="phase-timer">4</div> <!-- Value updated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
