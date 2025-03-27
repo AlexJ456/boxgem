@@ -1,31 +1,27 @@
 // sw.js - Service Worker for Offline Capability
 
-// Increment cache name when files change to trigger update
-const CACHE_NAME = 'box-breathing-cache-v3';
+const CACHE_NAME = 'box-breathing-cache-v4'; // Incremented version for SW changes
 const urlsToCache = [
-    // Use absolute paths from the root domain
-    '/',                    // Cache the root path (often index.html)
-    '/index.html',          // Cache the single HTML file (contains HTML, CSS)
-    '/script.js',           // Cache the JavaScript file
-    '/manifest.json',       // Cache the PWA manifest
-    '/icons/icon-192x192.png', // Cache essential icons
+    '/',
+    '/index.html',
+    '/script.js',
+    '/manifest.json',
+    '/icons/icon-192x192.png',
     '/icons/icon-512x512.png'
 ];
 
-// Install: Cache core assets
+// --- Install Event --- (Same as before)
 self.addEventListener('install', event => {
     console.log('Service Worker: Installing...', CACHE_NAME);
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
                 console.log('Service Worker: Caching app shell');
-                // Fetch fresh copies from network during install
                 const requests = urlsToCache.map(url => new Request(url, { cache: 'reload' }));
                 return cache.addAll(requests);
             })
             .then(() => {
                  console.log('Service Worker: App shell cached successfully.');
-                 // Activate the new service worker immediately
                  return self.skipWaiting();
              })
             .catch(error => {
@@ -34,12 +30,11 @@ self.addEventListener('install', event => {
     );
 });
 
-// Activate: Clean up old caches and take control
+// --- Activate Event --- (Same as before)
 self.addEventListener('activate', event => {
     console.log('Service Worker: Activating...', CACHE_NAME);
     event.waitUntil(
         caches.keys().then(cacheNames => {
-            // Delete caches that are not the current one
             return Promise.all(
                 cacheNames.map(cacheName => {
                     if (cacheName !== CACHE_NAME) {
@@ -50,45 +45,68 @@ self.addEventListener('activate', event => {
             );
         }).then(() => {
              console.log('Service Worker: Active and ready to handle fetches!');
-             // Take control of any open clients without requiring a reload
              return self.clients.claim();
          })
     );
 });
 
-// Fetch: Serve from cache first, fallback to network (Cache First Strategy)
+
+// *** MODIFIED Fetch Event Handler ***
 self.addEventListener('fetch', event => {
-    // Only handle GET requests
     if (event.request.method !== 'GET') {
-       return;
+       return; // Only handle GET requests
     }
 
-    // Log fetch requests (can be disabled for less console noise)
-    // console.log('Service Worker: Fetching', event.request.url);
+    const requestUrl = new URL(event.request.url);
 
+    // Strategy: Cache First, with specific handling for navigation
     event.respondWith(
-        // Try to find the response in the cache
-        caches.match(event.request)
+        caches.match(event.request) // Try matching the exact request first (good for assets like JS, icons)
             .then(cachedResponse => {
-                // Return the cached response if found
                 if (cachedResponse) {
-                    // console.log('Service Worker: Serving from cache:', event.request.url);
+                    // console.log(`SW: Serving from cache (exact match): ${requestUrl.pathname}${requestUrl.search}`);
                     return cachedResponse;
                 }
 
-                // If not found in cache, fetch from network
-                // console.log('Service Worker: Not in cache, fetching from network:', event.request.url);
-                return fetch(event.request).catch(error => {
-                    // Handle network errors (e.g., offline)
-                    console.error('Service Worker: Fetch network error:', error);
-                    // Optionally return a custom offline fallback page for navigation requests
-                    // if (event.request.mode === 'navigate') {
-                    //     return caches.match('/offline.html'); // Need to create and cache offline.html
-                    // }
-                    // For assets, just returning the error/undefined might be okay
-                });
+                // If exact match fails, handle navigation requests specially
+                // This ensures /?view=exercise... still loads the base index.html from cache
+                if (event.request.mode === 'navigate') {
+                    console.log(`SW: Navigation request failed exact match, trying base page for: ${requestUrl.pathname}${requestUrl.search}`);
+                    // Attempt to serve the cached root or index.html, ignoring search parameters for the match
+                    return caches.match('/').then(rootResponse => {
+                         if (rootResponse) {
+                             console.log('SW: Serving "/" for navigation request.');
+                             return rootResponse;
+                         }
+                         // Fallback to /index.html if / isn't found directly
+                         return caches.match('/index.html').then(indexResponse => {
+                              if(indexResponse) {
+                                 console.log('SW: Serving "/index.html" for navigation request.');
+                                 return indexResponse;
+                              }
+                               // If base page not in cache (install failed?), try network
+                              console.warn('SW: Base page not in cache for navigation, trying network.');
+                              return fetch(event.request);
+                         });
+                    });
+                }
+
+                // For non-navigation requests not found in cache, fetch from network
+                // console.log(`SW: Not in cache, fetching from network: ${requestUrl.pathname}${requestUrl.search}`);
+                return fetch(event.request);
+
+            })
+            .catch(error => {
+                console.error('SW: Fetch failed:', error);
+                // Optionally provide a generic offline fallback page for navigation errors
+                // if (event.request.mode === 'navigate') {
+                //     return caches.match('/offline.html'); // Ensure offline.html is cached
+                // }
+                // Rethrow or return an error response
+                 return new Response("Network error occurred", { status: 408, headers: { 'Content-Type': 'text/plain' } });
             })
     );
 });
 
-console.log('Service Worker: Script loaded.'); // Log SW script execution
+
+console.log('Service Worker: Script loaded.');
